@@ -1,6 +1,9 @@
 #include "DHTesp.h"
 DHTesp dht;
 // DHT11 DATA connects to GPIO 21, with a 10 kOhm pull-up to 3.3 V.
+#define SDA 14
+#define SCL 13
+LiquidCrystal_I2C lcd(0x27,16,2);
 const int dhtPin = 21;
 unsigned long lastReadTime = 0;
 const unsigned long readInterval = 2000;
