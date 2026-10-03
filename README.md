@@ -33,7 +33,6 @@ Power off before changing wiring. Follow the sensor pin numbering in the kit dia
 
 [Editable KiCad project](HardWare/room-environment-monitor/room-environment-monitor.kicad_pro) | [PDF schematic](HardWare/room-environment-monitor/room-environment-monitor.pdf)
 
-This project-specific diagram was generated with Codex from the builder-confirmed wiring. The ESP32-S3 block shows only the three board connections used; its logical pin identifiers are not physical header positions. The DHT11 pin numbers match the kit wiring reference. KiCad electrical-rule checks reported zero errors or warnings, and exported connectivity was checked against the wiring table. The symbols use passive pin types for wiring documentation, so ERC does not validate voltage compatibility or sensor behavior. No PCB layout or footprint assignments are provided.
 
 ## Software and setup
 
