@@ -11,3 +11,10 @@ build/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# KiCad local state and backups
+*.kicad_prl
+*.lck
+*-backups/
+~*.kicad_sch.lck
+.history/

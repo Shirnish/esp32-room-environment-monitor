@@ -27,6 +27,14 @@ The resistor holds the data line high when it is idle. Although the tutorial sch
 
 Power off before changing wiring. Follow the sensor pin numbering in the kit diagram rather than assuming a physical orientation from this table.
 
+## V1 schematic
+
+![V1 ESP32-S3 and DHT11 schematic](HardWare/room-environment-monitor/room-environment-monitor.svg)
+
+[Editable KiCad project](HardWare/room-environment-monitor/room-environment-monitor.kicad_pro) | [PDF schematic](HardWare/room-environment-monitor/room-environment-monitor.pdf)
+
+This project-specific diagram was generated with Codex from the builder-confirmed wiring. The ESP32-S3 block shows only the three board connections used; its logical pin identifiers are not physical header positions. The DHT11 pin numbers match the kit wiring reference. KiCad electrical-rule checks reported zero errors or warnings, and exported connectivity was checked against the wiring table. The symbols use passive pin types for wiring documentation, so ERC does not validate voltage compatibility or sensor behavior. No PCB layout or footprint assignments are provided.
+
 ## Software and setup
 
 1. Open `Second_Project.ino` in Arduino IDE. Keep the sketch inside the `Second_Project` folder.
@@ -78,7 +86,7 @@ To repeat the failure test, power off, disconnect the data wire, restart, and ch
 - **V4:** Add PIR motion/occupancy status
 - **V5:** Add Wi-Fi and a browser dashboard
 
-Only V1 is currently implemented. Build photos and an original wiring diagram will be added later.
+Only V1 is currently implemented. A project-specific V1 schematic is included above; build photos will be added later.
 
 ## References and attribution
 
