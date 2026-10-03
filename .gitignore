@@ -1,0 +1,13 @@
+# Build output
+build/
+*.elf
+*.bin
+*.hex
+*.map
+
+# Local editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
