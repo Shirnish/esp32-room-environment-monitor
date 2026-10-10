@@ -2,7 +2,7 @@
 
 I'm building this project as part of my embedded-systems portfolio for Computer Engineering. I started with the Freenove ESP32-S3 kit tutorials and am developing the monitor one version at a time to practice sensor interfacing, debugging, timing, and code organization.
 
-**Current milestone: V3 LED status indicators — October 5, 2026.** Temperature, humidity, Serial output, and all three LED states are working on my board. I removed the LCD while I wait to install the bidirectional I2C level shifter. Its initialization and display calls are temporarily commented out in the sketch.
+**Current milestone: V4 motion and occupancy estimate — October 10, 2026.** I added the HC-SR501 PIR sensor and tested motion-change reporting, a non-blocking warm-up period, and an occupancy timeout on my board. Temperature, humidity, and the environmental LEDs continue working. The LCD remains removed while its level-shifter integration is pending; its initialization and display calls are still commented out.
 
 ## V1: temperature and humidity over Serial
 
@@ -48,6 +48,7 @@ To run the project:
 3. Select the board configuration and USB port used for the ESP32-S3 kit tutorials.
 4. Upload the sketch and open Serial Monitor at **115200 baud**.
 5. Check for the startup message, followed by measurements approximately every two seconds. The first reading is scheduled after the initial interval.
+6. Allow 60 seconds for PIR warm-up. The first PIR level then prints once, followed by messages when motion or occupancy state changes.
 
 Example Serial output:
 
@@ -57,7 +58,7 @@ Example Serial output:
 
 This is an example of the output format, not a saved measurement. I still need to record the exact board-menu configuration. The installed LiquidCrystal I2C library is version 1.1.2; its AVR architecture warning appeared during compilation, but I successfully uploaded and tested the LCD code on my ESP32-S3. I haven't recorded the DHTesp or ESP32 board-package versions yet.
 
-The current sketch runs the DHT11, Serial output, and V3 status LEDs. The V2 LCD code is retained but disabled while the display is removed. Before restoring the LCD, read the voltage investigation below. The V1 and V2 schematics record those earlier circuits; the V3 LED wiring is documented in its own table below.
+The current sketch runs the DHT11, Serial output, environmental status LEDs, and V4 PIR motion/occupancy logic. The V2 LCD code is retained but disabled while the display is removed. Before restoring the LCD, read the voltage investigation below. The V1 and V2 schematics record those earlier circuits; the V3 LED and V4 PIR wiring are documented in their own tables below.
 
 ## V1 testing
 
@@ -84,7 +85,7 @@ To repeat the failure test, power off, disconnect DATA, restart, and check for a
 - I check the sensor status before converting or printing measurements.
 - The sensor transaction still takes time; scheduling with millis() doesn't make the library call asynchronous.
 - Printing decimal places doesn't establish the sensor's accuracy or precision.
-- I don't store a history of measurements. Failed reads print an error instead of measurements. In V2, they also replaced the LCD readings with an error message; in the current V3 build, they select the red LED while the LCD is disabled.
+- I don't store a history of measurements. Failed reads print an error instead of measurements. In V2, they also replaced the LCD readings with an error message; in the current build, they select the red LED while the LCD is disabled.
 
 ## V2: LCD development and voltage investigation
 
@@ -181,21 +182,86 @@ A second view of the physical breadboard build. The photos document the assembly
 
 The LED milestone is complete. My next hardware step is to install the level shifter, restore the LCD, and repeat testing with the display and LEDs together.
 
+## V4: PIR motion and occupancy estimate
+
+I added the kit's HC-SR501 PIR motion sensor while keeping the DHT11, Serial output, and environmental LEDs working. I developed this version with the LCD removed while I wait to complete its level-shifter integration.
+
+### PIR wiring
+
+| HC-SR501 connection | My wiring |
+| --- | --- |
+| VCC / + | Extension board's USB-supplied 5 V |
+| OUT / S | ESP32-S3 GPIO 7 |
+| GND / - | Board GND, shared with the DHT11 and LEDs |
+
+I identify the module pins from their labels and the kit diagram, rather than assuming a left-to-right order. The module uses 5 V power and provides an approximately 3.3 V HIGH output, as described in [Freenove's HC-SR501 documentation](https://docs.freenove.com/projects/fnk0082/en/latest/fnk0082/codes/Python/25_Infrared_Motion_Sensor.html). I read OUT with `digitalRead()`; the PIR needs no additional library or ADC conversion.
+
+### Timing and state logic
+
+| Setting | Current value | Purpose |
+| --- | --- | --- |
+| `readInterval` | 2,000 ms | Schedule DHT11 measurement attempts |
+| `pirWarmupInterval` | 60,000 ms | Suppress PIR and occupancy reporting during startup |
+| `occupancyTimeout` | 15,000 ms | Keep the occupancy estimate true after the last sampled HIGH |
+
+I set `pirStartTime` in `setup()`. During warm-up, `readMotion()` returns immediately, so temperature, humidity, and LED updates continue without a 60-second `delay()`.
+
+I call `readMotion()` on each pass through `loop()`, outside the two-second DHT timing condition. Motion polling is independent of that interval, although a sensor transaction or Serial output can still take time. This is polling, not interrupt-based event capture.
+
+`previousMotionState` starts at -1 so the first PIR reading after warm-up prints once. Later, I print `PIR: 0` or `PIR: 1` only when the level changes.
+
+When the PIR is HIGH, I set `occupied` to true and refresh `lastMotionTime` on every HIGH reading. When it is LOW, I keep the previous occupancy estimate until 15 seconds have elapsed since the last sampled HIGH. New HIGH readings refresh the timer. I capture the old occupancy value before updating it, then print an occupancy message only if the value changed.
+
+An illustrative sequence of motion messages is:
+
+```text
+PIR: 1
+Occupancy: Occupied
+PIR: 0
+Occupancy: No Recent Movement
+```
+
+The last line appears after the software timeout; it is not printed immediately with `PIR: 0`. Temperature and humidity messages continue between these events. This example shows the format, not a captured Serial log. If the first PIR reading is LOW, only `PIR: 0` prints initially because `occupied` already starts false.
+
+### Hardware testing
+
+I uploaded and tested the motion and occupancy behavior on my ESP32-S3:
+
+| Test | Result |
+| --- | --- |
+| PIR motion and return to LOW | Both 1 and 0 observed |
+| `readMotion()` refactor and motion-change reporting | Working; PIR messages print on level changes |
+| 60-second warm-up | Environmental readings and LEDs continue; PIR reporting begins after warm-up |
+| HIGH after warm-up | Occupancy becomes true and prints once |
+| LOW before the software timeout | Occupancy stays true |
+| LOW through the 15-second software timeout | Occupancy clears and prints once |
+| HIGH returns before the timeout expires | Timer refreshes and occupancy stays true |
+
+During the earlier raw-input test, I estimated that the PIR took about 40-60 seconds to return LOW after activity. I did not time that precisely. The module's own hold time and my software timeout are separate: the software keeps occupancy true for about 15 seconds after the output goes LOW. I haven't recorded the potentiometer positions or H/L jumper setting yet.
+
+### Limitations and next steps
+
+This is an occupancy estimate based on recent PIR activity. A stationary person may stop triggering the sensor, so I use the message "No Recent Movement" instead of claiming that the room is empty. A LOW reading also doesn't distinguish no activity from a disconnected or failed PIR signal.
+
+These are manual functional tests. I haven't measured response latency, checked long-duration operation or millis() rollover on hardware, or calibrated detection coverage. PIR reporting is suppressed during warm-up, so startup should not be interpreted as a confirmed empty-room state.
+
+The V4 motion/occupancy milestone is complete. I still need to add photos of this version and update the combined schematic. The existing build photos above show V3 and do not show the PIR. LCD integration and combined display testing remain pending the level shifter.
+
 ## Planned progression
 
 - **V1:** DHT11 to Serial Monitor — completed and hardware tested as described above
 - **V2:** LCD1602 output — functionality tested; voltage-interface correction and electrical validation pending
 - **V3:** Environmental LED status indicators — LED/Serial milestone completed and hardware tested; LCD restoration pending
-- **V4:** PIR motion/occupancy status
+- **V4:** PIR motion/occupancy estimate — completed and hardware tested as described above
 - **V5:** Wi-Fi and a browser dashboard
 
-I've added photos of the V3 breadboard build above. I'll update the schematic for the combined LCD and LED build after the level shifter is installed.
+I've added photos of the V3 breadboard build above. I'll add V4 photos and update the schematic for the combined sensor, PIR, LED, and LCD build as the hardware develops.
 
 ## References and attribution
 
 I used the **Freenove ESP32-S3 Ultimate Starter Kit tutorial** as the starting point for the sensor code and wiring. The tutorial schematic was a reference; I haven't redistributed it in this repository.
 
-My changes include calculating Fahrenheit, replacing the goto retry loop with error reporting, using millis() scheduling, separating the work into functions, adding LCD measurements and error messages, and selecting LED status indicators from sensor validity and configurable thresholds.
+My changes include calculating Fahrenheit, replacing the goto retry loop with error reporting, using millis() scheduling, separating the work into functions, adding LCD measurements and error messages, selecting LED status indicators from sensor validity and configurable thresholds, and adding PIR state-change reporting with a non-blocking warm-up and occupancy timeout.
 
 Libraries:
 

@@ -2,6 +2,7 @@
 #define led_PinYellow 5
 #define led_PinRed 6
 #include "DHTesp.h"
+#define pir 7
 DHTesp dht;
 // DHT11 DATA connects to GPIO 21, with a 10 kOhm pull-up to 3.3 V.
 #include <LiquidCrystal_I2C.h>
@@ -9,6 +10,14 @@ DHTesp dht;
 #define SDA 14
 #define SCL 13
 LiquidCrystal_I2C lcd(0x27, 16, 2);
+// Occupancy is an estimate based on recent PIR activity.
+bool occupied = false;
+unsigned long lastMotionTime = 0;
+const unsigned long occupancyTimeout = 15000UL;
+const unsigned long pirWarmupInterval = 60000UL;
+unsigned long pirStartTime;
+// -1 makes the first PIR level after warm-up print once.
+int previousMotionState = -1;
 // Adjustable project limits; the comparisons include both endpoints.
 const float minimumTempC = 20;
 const float maxTempC = 26;
@@ -18,6 +27,8 @@ const int dhtPin = 21;
 unsigned long lastReadTime = 0;
 const unsigned long readInterval = 2000;
 void setup() {
+  pirStartTime = millis();
+  pinMode(pir, INPUT);
   pinMode(led_PinYellow, OUTPUT);
   digitalWrite(led_PinYellow, LOW);
   pinMode(led_PinGreen, OUTPUT);
@@ -98,10 +109,42 @@ void readEnvironment() {
   }
 }
 
+void readMotion() {
+  // Skip startup fluctuations while allowing the rest of loop() to run.
+  if (millis() - pirStartTime < pirWarmupInterval) {
+    return;
+  }
+  int currentMotionState;
+  currentMotionState = digitalRead(pir);
+  if (currentMotionState != previousMotionState) {
+    Serial.print("PIR: ");
+    Serial.println(currentMotionState);
+    previousMotionState = currentMotionState;
+  }
+  if (currentMotionState == 1) {
+    bool wasOccupied = occupied;
+    occupied = true;
+    // Refresh on every HIGH reading, including when the PIR level has not changed.
+    lastMotionTime = millis();
+    if (wasOccupied != occupied) {
+      Serial.println("Occupancy: Occupied");
+    }
+  } else if (occupied && millis() - lastMotionTime >= occupancyTimeout) {
+    // Retain occupancy during LOW until the software timeout has elapsed.
+    bool wasOccupied = occupied;
+    occupied = false;
+    if (wasOccupied != occupied) {
+      Serial.println("Occupancy: No Recent Movement");
+    }
+  }
+}
+
 void loop() {
   if (millis() - lastReadTime >= readInterval) {
     // Schedule from each attempt, including failures, to avoid rapid retries.
     lastReadTime = millis();
     readEnvironment();
   }
+  // Poll motion independently of the two-second environment schedule.
+  readMotion();
 }
