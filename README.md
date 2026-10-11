@@ -2,7 +2,7 @@
 
 I'm building this project as part of my embedded-systems portfolio for Computer Engineering. I started with the Freenove ESP32-S3 kit tutorials and am developing the monitor one version at a time to practice sensor interfacing, debugging, timing, and code organization.
 
-**Current milestone: V4 motion and occupancy estimate — October 10, 2026.** I added the HC-SR501 PIR sensor and tested motion-change reporting, a non-blocking warm-up period, and an occupancy timeout on my board. Temperature, humidity, and the environmental LEDs continue working. The LCD remains removed while its level-shifter integration is pending; its initialization and display calls are still commented out.
+**Current milestone: V4 with restored LCD and occupancy-controlled backlight — October 11, 2026.** I installed the DIYables bidirectional I2C level shifter, checked idle voltages on both sides, and restored the LCD. Temperature, humidity, Serial output, environmental LEDs, and PIR occupancy logic are working together. I also tested turning the LCD backlight on and off from the occupancy estimate.
 
 ## V1: temperature and humidity over Serial
 
@@ -39,16 +39,24 @@ Power off before changing wiring, and use the kit's sensor pin diagram to identi
 
 [Editable KiCad project](HardWare/room-environment-monitor/room-environment-monitor.kicad_pro) | [PDF schematic](HardWare/room-environment-monitor/room-environment-monitor.pdf)
 
+## Current V4 schematic
+
+![V4 combined wiring: DHT11, LEDs, PIR, LCD1602 and I2C level shifter](HardWare/room-environment-monitor-v4/room-environment-monitor-v4.svg)
+
+[Editable KiCad project](HardWare/room-environment-monitor-v4/room-environment-monitor-v4.kicad_pro) | [PNG diagram](HardWare/room-environment-monitor-v4/room-environment-monitor-v4.png)
+
+This diagram includes the current GPIO assignments, one 220 ohm resistor per LED, the DHT11 pull-up, the HC-SR501, and the installed LCD voltage interface. I use the module labels to identify connections; the ESP32 board block is a simplified symbol rather than a drawing of the physical headers.
+
 ## Software and setup
 
 To run the project:
 
 1. Open `Second_Project.ino` in Arduino IDE. Keep the sketch inside the `Second_Project` folder.
-2. Install ESP32 board support, DHTesp, and the kit's LiquidCrystal I2C library. The current sketch still includes the LCD library even though LCD communication is temporarily disabled.
+2. Install ESP32 board support, DHTesp, and the kit's LiquidCrystal I2C library. The LCD communicates through the installed bidirectional level shifter.
 3. Select the board configuration and USB port used for the ESP32-S3 kit tutorials.
 4. Upload the sketch and open Serial Monitor at **115200 baud**.
 5. Check for the startup message, followed by measurements approximately every two seconds. The first reading is scheduled after the initial interval.
-6. Allow 60 seconds for PIR warm-up. The first PIR level then prints once, followed by messages when motion or occupancy state changes.
+6. Allow 60 seconds for PIR warm-up. The backlight stays on during startup. After warm-up, motion and occupancy messages print when their states change, and the backlight follows the occupancy estimate.
 
 Example Serial output:
 
@@ -58,7 +66,7 @@ Example Serial output:
 
 This is an example of the output format, not a saved measurement. I still need to record the exact board-menu configuration. The installed LiquidCrystal I2C library is version 1.1.2; its AVR architecture warning appeared during compilation, but I successfully uploaded and tested the LCD code on my ESP32-S3. I haven't recorded the DHTesp or ESP32 board-package versions yet.
 
-The current sketch runs the DHT11, Serial output, environmental status LEDs, and V4 PIR motion/occupancy logic. The V2 LCD code is retained but disabled while the display is removed. Before restoring the LCD, read the voltage investigation below. The V1 and V2 schematics record those earlier circuits; the V3 LED and V4 PIR wiring are documented in their own tables below.
+The current sketch runs the DHT11, LCD1602, Serial output, environmental LEDs, and V4 PIR motion/occupancy logic. I call `readMotion()` followed by `updateLcdBacklight()` on each loop pass, while `readEnvironment()` remains scheduled every two seconds. The V4 schematic above shows the combined wiring; the earlier schematics remain available as project history.
 
 ## V1 testing
 
@@ -85,7 +93,7 @@ To repeat the failure test, power off, disconnect DATA, restart, and check for a
 - I check the sensor status before converting or printing measurements.
 - The sensor transaction still takes time; scheduling with millis() doesn't make the library call asynchronous.
 - Printing decimal places doesn't establish the sensor's accuracy or precision.
-- I don't store a history of measurements. Failed reads print an error instead of measurements. In V2, they also replaced the LCD readings with an error message; in the current build, they select the red LED while the LCD is disabled.
+- I don't store a history of measurements. Failed reads print an error instead of measurements, select the red LED, and replace the LCD readings with an error message. The LCD backlight still follows occupancy; sensor errors do not force it on.
 
 ## V2: LCD development and voltage investigation
 
@@ -99,15 +107,15 @@ I used address **0x27**, SDA on **GPIO 14**, and SCL on **GPIO 13**. Following t
 
 [Editable current V2 KiCad project](HardWare/room-environment-monitor-v2-current/room-environment-monitor-v2-current.kicad_pro) | [PNG diagram](HardWare/room-environment-monitor-v2-current/room-environment-monitor-v2-current.png)
 
-This diagram records the direct 5 V LCD connection I used during functional testing, without a level shifter. I measured the disconnected LCD signal pins near 5 V afterward, so I am documenting this circuit with its unresolved voltage issue rather than treating it as electrically validated. The separate schematic below shows my planned correction.
+This diagram records the direct 5 V LCD connection I used during functional testing, without a level shifter. I measured the disconnected LCD signal pins near 5 V afterward, so I am documenting this circuit with its unresolved voltage issue rather than treating it as electrically validated. The separate V2 design below shows the level-shifting approach; the current combined V4 schematic is linked above.
 
-### Planned V2 schematic
+### Earlier V2 level-shifter design
 
 ![Planned V2 wiring with bidirectional I2C level shifting](HardWare/room-environment-monitor-v2/room-environment-monitor-v2.svg)
 
 [Editable V2 KiCad project](HardWare/room-environment-monitor-v2/room-environment-monitor-v2.kicad_pro) | [PNG diagram](HardWare/room-environment-monitor-v2/room-environment-monitor-v2.png)
 
-This diagram shows my planned hardware correction, including the level shifter I still need to install. It is not a record of a completed build. The V1 schematic remains available above.
+I created this diagram while planning the LCD voltage-interface correction. I have since installed the shifter and added the LEDs and PIR. This earlier sheet does not include those additions; the current V4 schematic above documents the combined build.
 
 ### Voltage measurements
 
@@ -117,11 +125,34 @@ I'm still learning to use the multimeter, so measurement error is possible. I ha
 
 The [ESP32-S3 datasheet, Table 5-4](https://documentation.espressif.com/esp32-s3_datasheet_en.pdf) specifies a high-level input maximum of VDD + 0.3 V, approximately **3.6 V** with a 3.3 V GPIO supply. My measured 5 V signals exceed that specification. Seeing the display work doesn't confirm that the direct connection is electrically compatible.
 
-### Next hardware step
+### Installed LCD interface — October 11, 2026
 
-V2's display functionality has been tested, but I still need to resolve the signal-voltage issue. I ordered a **bidirectional I2C level shifter** for the 3.3 V ESP32 side and the 5 V LCD side. I removed the LCD for the V3 LED tests. The shifter is not installed yet, and I haven't tested the corrected LCD interface. SDA and SCL should remain disconnected from the ESP32 until the interface is corrected.
+I installed one module from the [DIYables five-pack of presoldered four-channel bidirectional I2C level shifters](https://diyables.io/products/5-pack-4-channel-iic-i2c-level-converter-module-bi-directional-logic-level-shifter-5v-to-3.3v-for-arduino-raspberry-pi-esp8266-esp32-sensors-presoldered-compact-adapter-board). It translates SDA and SCL between the ESP32's 3.3 V side and the LCD's 5 V side. The LCD still takes power directly from the extension board's USB-supplied 5 V; the shifter does not generate its power.
 
-After adding the shifter, I need to measure both sides of the bus and repeat the display, sensor-error, and recovery tests.
+| Connection | My wiring |
+| --- | --- |
+| Shifter LV | Board 3.3 V |
+| Shifter HV | Board 5 V |
+| Shifter GND connections | Board GND |
+| LV1 | GPIO 14 / SDA |
+| HV1 | LCD SDA |
+| LV2 | GPIO 13 / SCL |
+| HV2 | LCD SCL |
+| LCD VCC | Board 5 V, shared with shifter HV |
+| LCD GND | Board GND, shared with all modules |
+
+Channels 3 and 4 are unused. I disconnected USB while changing wiring. Before connecting LV1/LV2 to the ESP32 GPIOs, I powered the shifter and LCD with LCD communication disabled and checked DC voltages relative to common GND:
+
+| Signal | Approximate idle measurement |
+| --- | --- |
+| LV1 | 3.3 V |
+| LV2 | 3.3 V |
+| HV1 | 5 V |
+| HV2 | 5 V |
+
+I then restored the GPIO connections, LCD initialization, normal measurement display, and sensor-error display calls. The LCD worked alongside Serial output, environmental LEDs, and PIR reporting. With DHT11 DATA disconnected and the board restarted, the LCD showed "Sensor error" / "Check Wiring", the red LED was on, and Serial reported the sensor error. PIR reporting still worked after warm-up. After reconnecting DATA and restarting, normal readings and the appropriate environmental LED returned.
+
+These were manual functional tests and idle DC measurements. I haven't recorded I2C waveforms, independently calibrated the meter, or tested long-duration bus operation. The recovery test used a restart; it does not establish recovery without restarting. I performed these combined sensor-error and recovery tests before adding the backlight control described in V4 below.
 
 The current temperature-row layout is intended for readings below **100 °F**. Higher readings need a shorter layout to fit within the LCD's 16 columns.
 
@@ -137,7 +168,7 @@ For this milestone, I added green, yellow, and red LEDs while keeping the DHT11 
 | Yellow | 5 | GPIO 5 -> 220 ohm resistor -> anode; cathode -> GND |
 | Red | 6 | GPIO 6 -> 220 ohm resistor -> anode; cathode -> GND |
 
-The LEDs and DHT11 share the board's GND. My DHT11 wiring remains the same as V1. The LCD is absent from this build.
+The LEDs and DHT11 share the board's GND. My DHT11 wiring remains the same as V1. I removed the LCD during the original V3 tests; it is now restored in the combined V4 build.
 
 ### Status logic
 
@@ -174,17 +205,17 @@ These are manual functional tests. I haven't tested every exact threshold bounda
 
 ![V3 breadboard build with the yellow LED lit and the LCD removed](docs/images/v3-yellow-status.jpg)
 
-My ESP32-S3, DHT11, and three status LEDs during V3 testing. The yellow status LED is lit; the LCD is removed while its level-shifter integration is pending.
+My ESP32-S3, DHT11, and three status LEDs during V3 testing. The yellow status LED is lit; I had removed the LCD while its level-shifter integration was pending.
 
 ![Top view of the V3 ESP32-S3, DHT11, and LED wiring](docs/images/v3-breadboard-top-view.jpg)
 
 A second view of the physical breadboard build. The photos document the assembly; the wiring tables record the GPIO assignments and resistor values.
 
-The LED milestone is complete. My next hardware step is to install the level shifter, restore the LCD, and repeat testing with the display and LEDs together.
+The LED milestone is complete. I later restored the LCD through the level shifter and tested it with the LEDs and PIR, as recorded in the October 11 integration above.
 
 ## V4: PIR motion and occupancy estimate
 
-I added the kit's HC-SR501 PIR motion sensor while keeping the DHT11, Serial output, and environmental LEDs working. I developed this version with the LCD removed while I wait to complete its level-shifter integration.
+I added the kit's HC-SR501 PIR motion sensor while keeping the DHT11, Serial output, and environmental LEDs working. I first developed this version with the LCD removed, then restored the display through the level shifter and added occupancy-controlled backlight behavior.
 
 ### PIR wiring
 
@@ -239,29 +270,58 @@ I uploaded and tested the motion and occupancy behavior on my ESP32-S3:
 
 During the earlier raw-input test, I estimated that the PIR took about 40-60 seconds to return LOW after activity. I did not time that precisely. The module's own hold time and my software timeout are separate: the software keeps occupancy true for about 15 seconds after the output goes LOW. I haven't recorded the potentiometer positions or H/L jumper setting yet.
 
+### Occupancy-controlled LCD backlight
+
+I added `updateLcdBacklight()` and call it immediately after `readMotion()`. The backlight starts on and stays on during the 60-second PIR warm-up. After warm-up, it follows `occupied`: recent activity turns it on, and the occupancy timeout turns it off. If the first PIR reading after warm-up is LOW and no activity has been recorded, it turns off at that point.
+
+I track the commanded backlight state in `lcdBacklightOn` and send `lcd.backlight()` or `lcd.noBacklight()` only when the desired state changes. Turning off the backlight leaves the LCD powered. Measurement display updates, Serial output, environmental LEDs, and motion polling continue.
+
+I uploaded this version and tested:
+
+| Test | Result |
+| --- | --- |
+| Startup warm-up | Backlight stays on |
+| LOW after warm-up with no recorded activity | Backlight turns off |
+| PIR HIGH / occupied | Backlight turns on |
+| PIR returns LOW | Backlight remains on during the occupancy grace period |
+| LOW continues through the occupancy timeout | Backlight turns off |
+| Backlight off | Serial readings and environmental LEDs continue working |
+
+The backlight follows occupancy even during a DHT11 error. Error text is still written to the LCD, but the code does not force illumination on; Serial and the red LED remain the other error indicators. I haven't separately repeated the sensor-error/recovery test with the new backlight feature.
+
+### Current build photos
+
+![Combined V4 ESP32-S3 room monitor with PIR and LCD connected](docs/images/v4-complete-assembly.jpg)
+
+My combined V4 assembly with the PIR held above the breadboard and the LCD connected alongside it. The breadboard includes the DHT11, level shifter, and three environmental status LEDs.
+
+![Close view of the V4 DHT11, level shifter, and LED wiring](docs/images/v4-breadboard-close-up.jpg)
+
+A closer view of my DHT11, installed level shifter, and LED wiring. These photos document the physical assembly; they do not show active LCD readings. My functional test results are recorded in the tables above.
+
 ### Limitations and next steps
 
 This is an occupancy estimate based on recent PIR activity. A stationary person may stop triggering the sensor, so I use the message "No Recent Movement" instead of claiming that the room is empty. A LOW reading also doesn't distinguish no activity from a disconnected or failed PIR signal.
 
 These are manual functional tests. I haven't measured response latency, checked long-duration operation or millis() rollover on hardware, or calibrated detection coverage. PIR reporting is suppressed during warm-up, so startup should not be interpreted as a confirmed empty-room state.
 
-The V4 motion/occupancy milestone is complete. I still need to add photos of this version and update the combined schematic. The existing build photos above show V3 and do not show the PIR. LCD integration and combined display testing remain pending the level shifter.
+The combined V4 motion/occupancy, LCD, and backlight milestone is complete. The updated KiCad diagram above includes the PIR, LEDs, and installed level shifter. The current build photos are included above, and the earlier V3 photos remain labeled as V3.
 
 ## Planned progression
 
 - **V1:** DHT11 to Serial Monitor — completed and hardware tested as described above
-- **V2:** LCD1602 output — functionality tested; voltage-interface correction and electrical validation pending
-- **V3:** Environmental LED status indicators — LED/Serial milestone completed and hardware tested; LCD restoration pending
-- **V4:** PIR motion/occupancy estimate — completed and hardware tested as described above
+- **V2:** LCD1602 output — restored through the level shifter; idle voltages and combined functional tests recorded above
+- **V3:** Environmental LED status indicators — completed and hardware tested; working with the restored LCD
+- **V4:** PIR motion/occupancy estimate and LCD backlight control — completed and hardware tested as described above
 - **V5:** Wi-Fi and a browser dashboard
 
-I've added photos of the V3 breadboard build above. I'll add V4 photos and update the schematic for the combined sensor, PIR, LED, and LCD build as the hardware develops.
+The current V4 schematic is available above. My next software version is V5: Wi-Fi and a browser dashboard.
 
 ## References and attribution
 
 I used the **Freenove ESP32-S3 Ultimate Starter Kit tutorial** as the starting point for the sensor code and wiring. The tutorial schematic was a reference; I haven't redistributed it in this repository.
 
-My changes include calculating Fahrenheit, replacing the goto retry loop with error reporting, using millis() scheduling, separating the work into functions, adding LCD measurements and error messages, selecting LED status indicators from sensor validity and configurable thresholds, and adding PIR state-change reporting with a non-blocking warm-up and occupancy timeout.
+My changes include calculating Fahrenheit, replacing the goto retry loop with error reporting, using millis() scheduling, separating the work into functions, adding LCD measurements and error messages, selecting LED status indicators from sensor validity and configurable thresholds, adding PIR state-change reporting with a non-blocking warm-up and occupancy timeout, installing I2C level shifting, and controlling the LCD backlight from the occupancy estimate.
 
 Libraries:
 

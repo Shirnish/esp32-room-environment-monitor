@@ -7,6 +7,8 @@ DHTesp dht;
 // DHT11 DATA connects to GPIO 21, with a 10 kOhm pull-up to 3.3 V.
 #include <LiquidCrystal_I2C.h>
 #include <Wire.h>
+// Matches lcd.backlight() in setup(); update only when the desired state changes.
+bool lcdBacklightOn = true;
 #define SDA 14
 #define SCL 13
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -36,13 +38,13 @@ void setup() {
   pinMode(led_PinRed, OUTPUT);
   digitalWrite(led_PinRed, LOW);
   dht.setup(dhtPin, DHTesp::DHT11);
-  // LCD removed while its I2C level shifter is pending.
-  // Wire.begin(SDA, SCL);
-  // if (!i2CAddrTest(0x27)) {
-  //   lcd = LiquidCrystal_I2C(0x3F, 16, 2);
-  // }
-  // lcd.init();
-  // lcd.backlight();
+  // Bidirectional I2C level shifting between the 3.3 V ESP32 and 5 V LCD.
+  Wire.begin(SDA, SCL);
+  if (!i2CAddrTest(0x27)) {
+    lcd = LiquidCrystal_I2C(0x3F, 16, 2);
+  }
+  lcd.init();
+  lcd.backlight();
   Serial.begin(115200);
   Serial.println("Starting up");
 }
@@ -92,7 +94,7 @@ void readEnvironment() {
   if (dht.getStatus() != 0) {
     Serial.println(dht.getStatusString());
     ledControl(false, false, true);
-    // sensorError();
+    sensorError();
   } else {
     float fahrenheit;
     fahrenheit = (newValues.temperature * 1.8) + 32;
@@ -105,7 +107,23 @@ void readEnvironment() {
     } else {
       ledControl(false, true, false);
     }
-    // updateScreen(newValues.temperature, newValues.humidity, fahrenheit);
+    updateScreen(newValues.temperature, newValues.humidity, fahrenheit);
+  }
+}
+
+void updateLcdBacklight() {
+  // Keep startup illumination on while the PIR settles.
+  if (millis() - pirStartTime < pirWarmupInterval) {
+    return;
+  }
+  // Avoid repeated I2C backlight commands when the state already matches.
+  if (occupied != lcdBacklightOn) {
+    if (occupied) {
+      lcd.backlight();
+    } else {
+      lcd.noBacklight();
+    }
+    lcdBacklightOn = occupied;
   }
 }
 
@@ -130,7 +148,7 @@ void readMotion() {
       Serial.println("Occupancy: Occupied");
     }
   } else if (occupied && millis() - lastMotionTime >= occupancyTimeout) {
-    // Retain occupancy during LOW until the software timeout has elapsed.
+    // Clear the estimate after the timeout since the last sampled HIGH.
     bool wasOccupied = occupied;
     occupied = false;
     if (wasOccupied != occupied) {
@@ -147,4 +165,5 @@ void loop() {
   }
   // Poll motion independently of the two-second environment schedule.
   readMotion();
+  updateLcdBacklight();
 }
