@@ -291,7 +291,7 @@ I uploaded this version and tested:
 | LOW continues through the occupancy timeout | Backlight turns off |
 | Backlight off | Serial readings and environmental LEDs continue working |
 
-The backlight follows occupancy even during a DHT11 error. Error text is still written to the LCD, but the code does not force illumination on; Serial and the red LED remain the other error indicators. I haven't separately repeated the sensor-error/recovery test with the new backlight feature.
+The backlight follows occupancy even during a DHT11 error. Error text is still written to the LCD, but the code does not force illumination on; Serial and the red LED remain the other error indicators. The final hardware photos below show normal operation and the LCD/red-LED response to a disconnected DHT data wire on the current build.
 
 ### Current build photos
 
@@ -370,11 +370,30 @@ I set the timestamp before the first `WiFi.begin()` call too. Updating it before
 
 The two successful recoveries show that the new retry code can recover in my tested setup. I haven't recorded recovery times, the reason code for each test, a larger reset test series, or a separate network-outage recovery test. The original association rejection is still unexplained, so I am documenting recovery rather than claiming that the underlying router issue is fixed.
 
-### Finishing the project
+## Final hardware demonstration
 
-Next I want to record a short video showing the physical build and dashboard working together. I may also try a PCB design to get some layout experience, but that is optional and I haven't started it. The current KiCad files document the wiring; they are not a finished PCB design.
+I used photos to document the finished breadboard build alongside the dashboard image above.
 
-Other possible improvements are a phone-friendly page layout and padding normal LCD updates so shorter readings clear the previous text.
+![Current build showing temperature and humidity on the LCD with the yellow LED lit](docs/images/v5-normal-operation.jpg)
+
+The LCD shows 22.2 C, 72.0 F, and 65.8% humidity. Temperature is within my configured 20-26 C range, but humidity is above the 60% upper limit, so the yellow LED is on. The reading is valid; yellow means a measurement is outside my project limits.
+
+![Current build showing the LCD sensor-error message and red LED after DHT DATA was disconnected](docs/images/v5-dht-disconnected.jpg)
+
+I disconnected the DHT data wire to test a failed reading. The LCD shows `Sensor error` and `Check Wiring`, and the red LED is on. This is the sensor-failure state, separate from the yellow environmental warning.
+
+| Photo | What I demonstrated |
+| --- | --- |
+| Normal readings with yellow LED | Valid measurements, with humidity outside the configured range |
+| DHT DATA disconnected with red LED | Failed sensor reading and LCD error message |
+
+These photos record the LCD and LED states. The dashboard image and manual test results are documented separately above.
+
+### Optional follow-up work
+
+This completes the planned breadboard build and its photo documentation. I may try a PCB design to get some layout experience, but that is optional and I haven't started it. The current KiCad files document the wiring; they are not a finished PCB design.
+
+Other possible improvements are investigating the original Wi-Fi rejection, a phone-friendly page layout, and padding normal LCD updates so shorter readings clear the previous text.
 
 ## Version progression
 
@@ -385,7 +404,7 @@ Other possible improvements are a phone-friendly page layout and padding normal 
 - **V5:** Wi-Fi and a browser dashboard — dashboard tested on my phone
 - **V5.1:** Timed Wi-Fi recovery — reconnected successfully in two manual tests; original rejection cause remains unconfirmed
 
-V5 and V5.1 use the V4 wiring and build photos above. The dashboard image is included in the V5 section. A demo video is the next documentation step, and the PCB is optional.
+V5 and V5.1 use the V4 wiring and assembly photos above. The V5 dashboard image and final LCD/LED demonstration photos document the working build. A PCB remains an optional follow-up.
 
 ## References and attribution
 
