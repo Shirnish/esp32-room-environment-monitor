@@ -2,7 +2,7 @@
 
 I'm building this project as part of my embedded-systems portfolio for Computer Engineering. I started with the Freenove ESP32-S3 kit tutorials and am developing the monitor one version at a time to practice sensor interfacing, debugging, timing, and code organization.
 
-**Current milestone: V4 with restored LCD and occupancy-controlled backlight — October 11, 2026.** I installed the DIYables bidirectional I2C level shifter, checked idle voltages on both sides, and restored the LCD. Temperature, humidity, Serial output, environmental LEDs, and PIR occupancy logic are working together. I also tested turning the LCD backlight on and off from the occupancy estimate.
+**Current milestone: V5 browser dashboard — October 14, 2026.** I can now view temperature, humidity, and motion status from my phone. The page refreshes every five seconds and shows a message if the sensor reading fails. The LCD, LEDs, and Serial output still work alongside it. I connected through my router's 2.4 GHz guest network; reconnecting after a reset is still inconsistent, as described in the [V5 notes](#v5-wi-fi-and-browser-dashboard).
 
 ## V1: temperature and humidity over Serial
 
@@ -39,24 +39,26 @@ Power off before changing wiring, and use the kit's sensor pin diagram to identi
 
 [Editable KiCad project](HardWare/room-environment-monitor/room-environment-monitor.kicad_pro) | [PDF schematic](HardWare/room-environment-monitor/room-environment-monitor.pdf)
 
-## Current V4 schematic
+## Current wiring: V4 schematic
 
 ![V4 combined wiring: DHT11, LEDs, PIR, LCD1602 and I2C level shifter](HardWare/room-environment-monitor-v4/room-environment-monitor-v4.svg)
 
 [Editable KiCad project](HardWare/room-environment-monitor-v4/room-environment-monitor-v4.kicad_pro) | [PNG diagram](HardWare/room-environment-monitor-v4/room-environment-monitor-v4.png)
 
-This diagram includes the current GPIO assignments, one 220 ohm resistor per LED, the DHT11 pull-up, the HC-SR501, and the installed LCD voltage interface. I use the module labels to identify connections; the ESP32 board block is a simplified symbol rather than a drawing of the physical headers.
+This diagram includes the current GPIO assignments, one 220 ohm resistor per LED, the DHT11 pull-up, the HC-SR501, and the installed LCD voltage interface. V5 adds Wi-Fi and the dashboard without changing the wiring, so this is still the current schematic. I use the module labels to identify connections; the ESP32 board block is a simplified symbol rather than a drawing of the physical headers.
 
 ## Software and setup
 
 To run the project:
 
 1. Open `Second_Project.ino` in Arduino IDE. Keep the sketch inside the `Second_Project` folder.
-2. Install ESP32 board support, DHTesp, and the kit's LiquidCrystal I2C library. The LCD communicates through the installed bidirectional level shifter.
-3. Select the board configuration and USB port used for the ESP32-S3 kit tutorials.
-4. Upload the sketch and open Serial Monitor at **115200 baud**.
-5. Check for the startup message, followed by measurements approximately every two seconds. The first reading is scheduled after the initial interval.
-6. Allow 60 seconds for PIR warm-up. The backlight stays on during startup. After warm-up, motion and occupancy messages print when their states change, and the backlight follows the occupancy estimate.
+2. Install ESP32 board support, DHTesp, and the kit's LiquidCrystal I2C library. `WiFi` and `WebServer` are included with the ESP32 board package. The LCD communicates through the installed bidirectional level shifter.
+3. Copy `secrets.example.h` to `secrets.h` in the sketch folder. Replace the placeholders in `secrets.h` with the name and password of a 2.4 GHz Wi-Fi network. I keep this file local; `.gitignore` excludes it from Git.
+4. Select the board configuration and USB port used for the ESP32-S3 kit tutorials.
+5. Upload the sketch and open Serial Monitor at **115200 baud**.
+6. Check for the startup message, followed by measurements approximately every two seconds. Once Wi-Fi connects, Serial prints `Ip Address:` followed by the assigned address.
+7. Connect a phone or computer to the same network and open `http://<printed-IP>/` in a browser, replacing `<printed-IP>` with the actual address. Use HTTP. The page refreshes every five seconds. Guest-network isolation settings can affect whether devices can reach each other; browser access worked on my tested guest network.
+8. Allow 60 seconds for PIR warm-up. The backlight stays on and the page says `PIR warming up` during startup. After warm-up, motion and occupancy messages print when their states change, and the backlight follows the occupancy estimate.
 
 Example Serial output:
 
@@ -64,9 +66,9 @@ Example Serial output:
  Temperature:25.00°C Temperature Fahrenheit:77.00°F Humidity:50.00%
 ```
 
-This is an example of the output format, not a saved measurement. I still need to record the exact board-menu configuration. The installed LiquidCrystal I2C library is version 1.1.2; its AVR architecture warning appeared during compilation, but I successfully uploaded and tested the LCD code on my ESP32-S3. I haven't recorded the DHTesp or ESP32 board-package versions yet.
+This is an example of the output format, not a saved measurement. The installed versions recorded for this milestone are ESP32 board package **3.3.12**, DHTesp **1.19**, and LiquidCrystal I2C **1.1.2**. I still need to record the exact board-menu configuration. The LiquidCrystal I2C library's AVR architecture warning appeared during compilation, but I successfully uploaded and tested the LCD code on my ESP32-S3.
 
-The current sketch runs the DHT11, LCD1602, Serial output, environmental LEDs, and V4 PIR motion/occupancy logic. I call `readMotion()` followed by `updateLcdBacklight()` on each loop pass, while `readEnvironment()` remains scheduled every two seconds. The V4 schematic above shows the combined wiring; the earlier schematics remain available as project history.
+The current sketch runs the DHT11, LCD1602, Serial output, environmental LEDs, PIR motion/occupancy logic, and browser dashboard. I call `readMotion()`, `updateLcdBacklight()`, `checkWifiStatus()`, and `server.handleClient()` on each loop pass, while `readEnvironment()` stays scheduled every two seconds. The V4 schematic above shows the combined wiring; the earlier schematics remain available as project history.
 
 ## V1 testing
 
@@ -89,11 +91,12 @@ To repeat the failure test, power off, disconnect DATA, restart, and check for a
 - I use `millis()` instead of a two-second `delay()` so the program can do other work between measurement attempts.
 - I update the attempt timestamp before reading, so failed attempts also respect the interval.
 - I use unsigned elapsed-time subtraction to handle millis() rollover.
-- I keep measurement variables local to the functions that use them.
+- I read the sensor inside `readEnvironment()` and save the latest successful measurements in globals for the browser. Opening the page doesn't trigger another sensor read.
 - I check the sensor status before converting or printing measurements.
 - The sensor transaction still takes time; scheduling with millis() doesn't make the library call asynchronous.
 - Printing decimal places doesn't establish the sensor's accuracy or precision.
-- I don't store a history of measurements. Failed reads print an error instead of measurements, select the red LED, and replace the LCD readings with an error message. The LCD backlight still follows occupancy; sensor errors do not force it on.
+- I don't store a history of measurements. Failed reads print an error instead of measurements, select the red LED, and replace the LCD readings with an error message. The page hides the saved measurements when `environmentValid` is false, while motion status stays available. The LCD backlight still follows occupancy; sensor errors do not force it on.
+- The browser makes a new HTTP request every five seconds. That refresh interval is separate from the two-second sensor interval. Sensor reads, Serial output, I2C operations, and handling a web request can still take time.
 
 ## V2: LCD development and voltage investigation
 
@@ -103,9 +106,9 @@ I used address **0x27**, SDA on **GPIO 14**, and SCL on **GPIO 13**. Following t
 
 ### V2 schematic: previously tested direct wiring
 
-![Current V2 direct LCD wiring](HardWare/room-environment-monitor-v2-current/room-environment-monitor-v2-current.svg)
+![Previously tested V2 direct LCD wiring](HardWare/room-environment-monitor-v2-current/room-environment-monitor-v2-current.svg)
 
-[Editable current V2 KiCad project](HardWare/room-environment-monitor-v2-current/room-environment-monitor-v2-current.kicad_pro) | [PNG diagram](HardWare/room-environment-monitor-v2-current/room-environment-monitor-v2-current.png)
+[Editable V2 direct-wiring KiCad project](HardWare/room-environment-monitor-v2-current/room-environment-monitor-v2-current.kicad_pro) | [PNG diagram](HardWare/room-environment-monitor-v2-current/room-environment-monitor-v2-current.png)
 
 This diagram records the direct 5 V LCD connection I used during functional testing, without a level shifter. I measured the disconnected LCD signal pins near 5 V afterward, so I am documenting this circuit with its unresolved voltage issue rather than treating it as electrically validated. The separate V2 design below shows the level-shifting approach; the current combined V4 schematic is linked above.
 
@@ -307,23 +310,73 @@ These are manual functional tests. I haven't measured response latency, checked 
 
 The combined V4 motion/occupancy, LCD, and backlight milestone is complete. The updated KiCad diagram above includes the PIR, LEDs, and installed level shifter. The current build photos are included above, and the earlier V3 photos remain labeled as V3.
 
-## Planned progression
+## V5: Wi-Fi and browser dashboard
+
+I started by connecting the ESP32 to Wi-Fi and printing its IP address in Serial Monitor. I then added a simple web response and opened it on my phone. Once that worked, I added the readings, sensor-error handling, motion status, an HTML heading, and automatic refresh.
+
+The page currently shows:
+
+- Temperature in Celsius and Fahrenheit
+- Relative humidity
+- `Sensor Reading Unavailable` if the DHT reading fails or no successful reading has happened yet
+- `PIR warming up`, `Occupancy: Occupied`, or `Occupancy: No recent Movement`
+
+The ESP32 serves the page at `/` on port 80. I build the response in `handleRoot()` and send it once with `server.send()`. The page uses a five-second HTML refresh setting, so I don't need to reload it manually.
+
+### Saved readings and separate state
+
+I keep the latest successful measurements in `latestTemperatureC`, `latestTemperatureF`, and `latestHumidity`. `environmentValid` starts false, becomes true after a successful read, and goes false after a failed read. The saved numbers remain in memory after a failure, but the page shows the error message instead of presenting them as current readings.
+
+The browser uses these saved values. `readEnvironment()` still controls when the DHT is read, so opening or refreshing the page doesn't request another measurement. I add motion status separately from the environmental `if/else`, so a DHT error doesn't hide occupancy information. During PIR warm-up, I show the warm-up message instead of treating the initial false occupancy value as no recent movement.
+
+### What I tested
+
+I uploaded each addition and checked it on my ESP32-S3 and phone:
+
+| Test | Result |
+| --- | --- |
+| Connect to the 2.4 GHz guest network | Connected and received an IP address |
+| Open the printed HTTP address on my phone | Displayed `Room Monitor Online` in the first test |
+| Add the saved Celsius, Fahrenheit, and humidity readings | Displayed the measurements |
+| Failed DHT reading | Page displayed the unavailable message |
+| Add PIR warm-up and occupancy reporting | Page displayed motion status separately from the measurements |
+| Convert the response to HTML | Heading and measurement lines displayed correctly |
+| Add the five-second refresh setting | Page refreshed without manually reloading |
+
+These were manual functional tests. I haven't measured request latency, tested multiple browsers at once, or run a long-duration test. The dashboard works, but reliable reconnection is still unfinished.
+
+### Wi-Fi issue I still need to fix
+
+I tested with a NETGEAR Nighthawk RAX50. Attempts on my main network reported reason `201` (`NO_AP_FOUND`). Separating the 2.4 GHz network from Smart Connect didn't resolve it. Using the 2.4 GHz guest network did let the ESP32 connect, and I could access the page from my phone.
+
+Some resets or USB disconnect/reconnect attempts still fail. Serial has shown `Association refused too many times, max allowed 1`, reason `208` (`ASSOC_COMEBACK_TIME_TOO_LONG`), and reason `36` (`STA_LEAVING`). I haven't confirmed the cause. The [Espressif reason-code documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-guides/wifi-driver/station-scenarios.html) describes reason 208 as an association response with a comeback time that is too long.
+
+I kept the disconnect callback to print the reason codes. My application starts Wi-Fi once in `setup()` and reports connection changes in `checkWifiStatus()`. I haven't added my own timed reconnect logic yet. That is the next reliability improvement; I am recording this milestone as a working dashboard with an unresolved connection issue.
+
+### Next improvements
+
+- Add a reconnect timer using `millis()` while keeping the rest of the monitor running.
+- Improve the page layout for phone screens.
+- Add padding to normal LCD updates so shorter readings clear the previous text.
+
+## Version progression
 
 - **V1:** DHT11 to Serial Monitor — completed and hardware tested as described above
 - **V2:** LCD1602 output — restored through the level shifter; idle voltages and combined functional tests recorded above
 - **V3:** Environmental LED status indicators — completed and hardware tested; working with the restored LCD
 - **V4:** PIR motion/occupancy estimate and LCD backlight control — completed and hardware tested as described above
-- **V5:** Wi-Fi and a browser dashboard
+- **V5:** Wi-Fi and a browser dashboard — basic dashboard tested on my phone; reset/reconnect reliability remains unresolved
 
-The current V4 schematic is available above. My next software version is V5: Wi-Fi and a browser dashboard.
+V5 uses the V4 wiring and build photos above. The dashboard is working; the next software step is improving reconnection behavior.
 
 ## References and attribution
 
 I used the **Freenove ESP32-S3 Ultimate Starter Kit tutorial** as the starting point for the sensor code and wiring. The tutorial schematic was a reference; I haven't redistributed it in this repository.
 
-My changes include calculating Fahrenheit, replacing the goto retry loop with error reporting, using millis() scheduling, separating the work into functions, adding LCD measurements and error messages, selecting LED status indicators from sensor validity and configurable thresholds, adding PIR state-change reporting with a non-blocking warm-up and occupancy timeout, installing I2C level shifting, and controlling the LCD backlight from the occupancy estimate.
+My changes include calculating Fahrenheit, replacing the goto retry loop with error reporting, using millis() scheduling, separating the work into functions, adding LCD measurements and error messages, selecting LED status indicators from sensor validity and configurable thresholds, adding PIR state-change reporting with a non-blocking warm-up and occupancy timeout, installing I2C level shifting, controlling the LCD backlight from the occupancy estimate, and serving saved readings and motion status in a browser.
 
 Libraries:
 
 - [DHTesp](https://github.com/beegee-tokyo/DHTesp)
 - [LiquidCrystal I2C](https://github.com/marcoschwartz/LiquidCrystal_I2C)
+- [Arduino-ESP32](https://github.com/espressif/arduino-esp32) — board support, WiFi, and WebServer

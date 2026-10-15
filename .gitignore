@@ -18,3 +18,6 @@ Desktop.ini
 *-backups/
 ~*.kicad_sch.lck
 .history/
+
+# Local Wi-Fi configuration
+/secrets.h
