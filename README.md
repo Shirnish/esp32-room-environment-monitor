@@ -2,7 +2,7 @@
 
 I'm building this project as part of my embedded-systems portfolio for Computer Engineering. I started with the Freenove ESP32-S3 kit tutorials and am developing the monitor one version at a time to practice sensor interfacing, debugging, timing, and code organization.
 
-**Current milestone: V5 browser dashboard — October 14, 2026.** I can now view temperature, humidity, and motion status from my phone. The page refreshes every five seconds and shows a message if the sensor reading fails. The LCD, LEDs, and Serial output still work alongside it. I connected through my router's 2.4 GHz guest network; reconnecting after a reset is still inconsistent, as described in the [V5 notes](#v5-wi-fi-and-browser-dashboard).
+**Current milestone: V5.1 timed Wi-Fi recovery — October 14, 2026.** I can view temperature, humidity, and motion status from my phone, with the page refreshing every five seconds. The LCD, LEDs, and Serial output still work alongside it. I added a reconnect timer and tested successful recovery twice. I use my router's 2.4 GHz guest network; the original connection rejection is still unexplained, as described in the [Wi-Fi recovery notes](#v51-timed-wi-fi-recovery).
 
 ## V1: temperature and humidity over Serial
 
@@ -56,7 +56,7 @@ To run the project:
 3. Copy `secrets.example.h` to `secrets.h` in the sketch folder. Replace the placeholders in `secrets.h` with the name and password of a 2.4 GHz Wi-Fi network. I keep this file local; `.gitignore` excludes it from Git.
 4. Select the board configuration and USB port used for the ESP32-S3 kit tutorials.
 5. Upload the sketch and open Serial Monitor at **115200 baud**.
-6. Check for the startup message, followed by measurements approximately every two seconds. Once Wi-Fi connects, Serial prints `Ip Address:` followed by the assigned address.
+6. Check for the startup message, followed by measurements approximately every two seconds. Once Wi-Fi connects, Serial prints `Ip Address:` followed by the assigned address. If it stays disconnected, my retry function prints `Retrying Connection` and starts another attempt when its 30-second interval has elapsed.
 7. Connect a phone or computer to the same network and open `http://<printed-IP>/` in a browser, replacing `<printed-IP>` with the actual address. Use HTTP. The page refreshes every five seconds. Guest-network isolation settings can affect whether devices can reach each other; browser access worked on my tested guest network.
 8. Allow 60 seconds for PIR warm-up. The backlight stays on and the page says `PIR warming up` during startup. After warm-up, motion and occupancy messages print when their states change, and the backlight follows the occupancy estimate.
 
@@ -68,7 +68,7 @@ Example Serial output:
 
 This is an example of the output format, not a saved measurement. The installed versions recorded for this milestone are ESP32 board package **3.3.12**, DHTesp **1.19**, and LiquidCrystal I2C **1.1.2**. I still need to record the exact board-menu configuration. The LiquidCrystal I2C library's AVR architecture warning appeared during compilation, but I successfully uploaded and tested the LCD code on my ESP32-S3.
 
-The current sketch runs the DHT11, LCD1602, Serial output, environmental LEDs, PIR motion/occupancy logic, and browser dashboard. I call `readMotion()`, `updateLcdBacklight()`, `checkWifiStatus()`, and `server.handleClient()` on each loop pass, while `readEnvironment()` stays scheduled every two seconds. The V4 schematic above shows the combined wiring; the earlier schematics remain available as project history.
+The current sketch runs the DHT11, LCD1602, Serial output, environmental LEDs, PIR motion/occupancy logic, and browser dashboard. I call `readMotion()`, `updateLcdBacklight()`, `checkWifiStatus()`, `wifiConnection()`, and `server.handleClient()` on each loop pass, while `readEnvironment()` stays scheduled every two seconds. The V4 schematic above shows the combined wiring; the earlier schematics remain available as project history.
 
 ## V1 testing
 
@@ -97,6 +97,7 @@ To repeat the failure test, power off, disconnect DATA, restart, and check for a
 - Printing decimal places doesn't establish the sensor's accuracy or precision.
 - I don't store a history of measurements. Failed reads print an error instead of measurements, select the red LED, and replace the LCD readings with an error message. The page hides the saved measurements when `environmentValid` is false, while motion status stays available. The LCD backlight still follows occupancy; sensor errors do not force it on.
 - The browser makes a new HTTP request every five seconds. That refresh interval is separate from the two-second sensor interval. Sensor reads, Serial output, I2C operations, and handling a web request can still take time.
+- I check Wi-Fi retry timing with `millis()` instead of waiting in a connection loop. My scheduled retry attempts are at least 30 seconds apart. The ESP32 library may also make its own automatic connection attempts.
 
 ## V2: LCD development and voltage investigation
 
@@ -347,21 +348,31 @@ I uploaded each addition and checked it on my ESP32-S3 and phone:
 | Convert the response to HTML | Heading and measurement lines displayed correctly |
 | Add the five-second refresh setting | Page refreshed without manually reloading |
 
-These were manual functional tests. I haven't measured request latency, tested multiple browsers at once, or run a long-duration test. The dashboard works, but reliable reconnection is still unfinished.
+These were manual functional tests. I haven't measured request latency, tested multiple browsers at once, or run a long-duration test. The V5.1 section below records the reconnect changes and two successful recovery tests.
 
-### Wi-Fi issue I still need to fix
+### Wi-Fi connection investigation
 
 I tested with a NETGEAR Nighthawk RAX50. Attempts on my main network reported reason `201` (`NO_AP_FOUND`). Separating the 2.4 GHz network from Smart Connect didn't resolve it. Using the 2.4 GHz guest network did let the ESP32 connect, and I could access the page from my phone.
 
-Some resets or USB disconnect/reconnect attempts still fail. Serial has shown `Association refused too many times, max allowed 1`, reason `208` (`ASSOC_COMEBACK_TIME_TOO_LONG`), and reason `36` (`STA_LEAVING`). I haven't confirmed the cause. The [Espressif reason-code documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-guides/wifi-driver/station-scenarios.html) describes reason 208 as an association response with a comeback time that is too long.
+During reset and USB disconnect/reconnect testing, some connection attempts failed. Serial showed `Association refused too many times, max allowed 1`, reason `208` (`ASSOC_COMEBACK_TIME_TOO_LONG`), and reason `36` (`STA_LEAVING`). I haven't confirmed the cause. The [Espressif reason-code documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-guides/wifi-driver/station-scenarios.html) describes reason 208 as an association response with a comeback time that is too long.
 
-I kept the disconnect callback to print the reason codes. My application starts Wi-Fi once in `setup()` and reports connection changes in `checkWifiStatus()`. I haven't added my own timed reconnect logic yet. That is the next reliability improvement; I am recording this milestone as a working dashboard with an unresolved connection issue.
+I kept the disconnect callback to print the reason codes. My application starts the initial connection in `setup()` and reports connection changes in `checkWifiStatus()`. I then added the timed retry function below to recover from failures instead of relying on another manual reset.
 
-### Next improvements
+## V5.1: timed Wi-Fi recovery
 
-For one final software pass, I want to work on the connection failures after resetting or reconnecting USB. I plan to add a reconnect timer using `millis()` and test repeated starts and recovery while the rest of the monitor keeps running. A timer may help the monitor recover, but I still need to investigate why the router sometimes refuses the connection.
+I added `wifiConnection()` and call it from `loop()`, outside the two-second sensor timing block. It checks whether Wi-Fi is disconnected and whether at least `wifiRetryInterval` (30,000 ms) has passed since my previous attempt. If both are true, it updates `lastWifiAttemptTime`, prints `Retrying Connection`, and calls `WiFi.reconnect()`.
 
-After that, I want to record a short video showing the physical build and dashboard working together. I may also try a PCB design to get some layout experience, but that is optional and I haven't started it. The current KiCad files document the wiring; they are not a finished PCB design.
+I set the timestamp before the first `WiFi.begin()` call too. Updating it before each retry keeps unsuccessful attempts from being repeated on every loop pass. The function has no waiting loop or `delay()`. `WiFi.reconnect()` starts an attempt; `checkWifiStatus()` reports the IP and starts the web server when a connection is established.
+
+| Test | Result |
+| --- | --- |
+| New timed reconnect code | ESP32 reconnected successfully in two manual tests |
+
+The two successful recoveries show that the new retry code can recover in my tested setup. I haven't recorded recovery times, the reason code for each test, a larger reset test series, or a separate network-outage recovery test. The original association rejection is still unexplained, so I am documenting recovery rather than claiming that the underlying router issue is fixed.
+
+### Finishing the project
+
+Next I want to record a short video showing the physical build and dashboard working together. I may also try a PCB design to get some layout experience, but that is optional and I haven't started it. The current KiCad files document the wiring; they are not a finished PCB design.
 
 Other possible improvements are a phone-friendly page layout and padding normal LCD updates so shorter readings clear the previous text.
 
@@ -371,15 +382,16 @@ Other possible improvements are a phone-friendly page layout and padding normal 
 - **V2:** LCD1602 output — restored through the level shifter; idle voltages and combined functional tests recorded above
 - **V3:** Environmental LED status indicators — completed and hardware tested; working with the restored LCD
 - **V4:** PIR motion/occupancy estimate and LCD backlight control — completed and hardware tested as described above
-- **V5:** Wi-Fi and a browser dashboard — basic dashboard tested on my phone; reset/reconnect reliability remains unresolved
+- **V5:** Wi-Fi and a browser dashboard — dashboard tested on my phone
+- **V5.1:** Timed Wi-Fi recovery — reconnected successfully in two manual tests; original rejection cause remains unconfirmed
 
-V5 uses the V4 wiring and build photos above. The dashboard is working; the next software step is improving reconnection behavior.
+V5 and V5.1 use the V4 wiring and build photos above. The dashboard image is included in the V5 section. A demo video is the next documentation step, and the PCB is optional.
 
 ## References and attribution
 
 I used the **Freenove ESP32-S3 Ultimate Starter Kit tutorial** as the starting point for the sensor code and wiring. The tutorial schematic was a reference; I haven't redistributed it in this repository.
 
-My changes include calculating Fahrenheit, replacing the goto retry loop with error reporting, using millis() scheduling, separating the work into functions, adding LCD measurements and error messages, selecting LED status indicators from sensor validity and configurable thresholds, adding PIR state-change reporting with a non-blocking warm-up and occupancy timeout, installing I2C level shifting, controlling the LCD backlight from the occupancy estimate, and serving saved readings and motion status in a browser.
+My changes include calculating Fahrenheit, replacing the goto retry loop with error reporting, using millis() scheduling, separating the work into functions, adding LCD measurements and error messages, selecting LED status indicators from sensor validity and configurable thresholds, adding PIR state-change reporting with a non-blocking warm-up and occupancy timeout, installing I2C level shifting, controlling the LCD backlight from the occupancy estimate, serving saved readings and motion status in a browser, and adding timed Wi-Fi retries.
 
 Libraries:
 

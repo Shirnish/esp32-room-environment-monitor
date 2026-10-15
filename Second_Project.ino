@@ -2,6 +2,8 @@
 #include <WiFi.h>
 #include "secrets.h"
 bool wasWifiConnected;
+const unsigned long wifiRetryInterval = 30000UL;
+unsigned long lastWifiAttemptTime = 0;
 
 // Web server
 #include <WebServer.h>
@@ -77,8 +79,20 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Starting up");
   WiFi.onEvent(onWifiDisconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+  lastWifiAttemptTime = millis();
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   server.on("/", handleRoot);
+}
+
+void wifiConnection() {
+  bool isConnected = (WiFi.status() == WL_CONNECTED);
+  // Retry every 30 seconds while disconnected. Keep the rest of loop() running.
+  if (!isConnected && millis() - lastWifiAttemptTime >= wifiRetryInterval) {
+    // Count failed attempts too, so they don't cause a retry on every loop.
+    lastWifiAttemptTime = millis();
+    Serial.println("Retrying Connection");
+    WiFi.reconnect();
+  }
 }
 
 void handleRoot() {
@@ -246,5 +260,6 @@ void loop() {
   readMotion();
   updateLcdBacklight();
   checkWifiStatus();
+  wifiConnection();
   server.handleClient();
 }
