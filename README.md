@@ -314,6 +314,10 @@ The combined V4 motion/occupancy, LCD, and backlight milestone is complete. The 
 
 I started by connecting the ESP32 to Wi-Fi and printing its IP address in Serial Monitor. I then added a simple web response and opened it on my phone. Once that worked, I added the readings, sensor-error handling, motion status, an HTML heading, and automatic refresh.
 
+![V5 browser dashboard showing temperature, humidity, and occupancy](docs/images/v5-browser-dashboard.jpg)
+
+My V5 dashboard displaying 22.0 C, 71.6 F, 64.2% humidity, and an occupied status. This image records the page during testing; the values come from the saved sensor readings and motion state.
+
 The page currently shows:
 
 - Temperature in Celsius and Fahrenheit
@@ -355,9 +359,11 @@ I kept the disconnect callback to print the reason codes. My application starts 
 
 ### Next improvements
 
-- Add a reconnect timer using `millis()` while keeping the rest of the monitor running.
-- Improve the page layout for phone screens.
-- Add padding to normal LCD updates so shorter readings clear the previous text.
+For one final software pass, I want to work on the connection failures after resetting or reconnecting USB. I plan to add a reconnect timer using `millis()` and test repeated starts and recovery while the rest of the monitor keeps running. A timer may help the monitor recover, but I still need to investigate why the router sometimes refuses the connection.
+
+After that, I want to record a short video showing the physical build and dashboard working together. I may also try a PCB design to get some layout experience, but that is optional and I haven't started it. The current KiCad files document the wiring; they are not a finished PCB design.
+
+Other possible improvements are a phone-friendly page layout and padding normal LCD updates so shorter readings clear the previous text.
 
 ## Version progression
 
