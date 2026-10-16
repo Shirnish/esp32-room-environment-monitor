@@ -2,7 +2,9 @@
 
 I'm building this project as part of my embedded-systems portfolio for Computer Engineering. I started with the Freenove ESP32-S3 kit tutorials and am developing the monitor one version at a time to practice sensor interfacing, debugging, timing, and code organization.
 
-**Current milestone: V5.1 timed Wi-Fi recovery — October 14, 2026.** I can view temperature, humidity, and motion status from my phone, with the page refreshing every five seconds. The LCD, LEDs, and Serial output still work alongside it. I added a reconnect timer and tested successful recovery twice. I use my router's 2.4 GHz guest network; the original connection rejection is still unexplained, as described in the [Wi-Fi recovery notes](#v51-timed-wi-fi-recovery).
+**Current software milestone: V5.1 timed Wi-Fi recovery — October 14, 2026.** I can view temperature, humidity, and motion status from my phone, with the page refreshing every five seconds. The LCD, LEDs, and Serial output still work alongside it. I added a reconnect timer and tested successful recovery twice. I use my router's 2.4 GHz guest network; the original connection rejection is still unexplained, as described in the [Wi-Fi recovery notes](#v51-timed-wi-fi-recovery).
+
+**PCB practice milestone — October 16, 2026:** I also created a routed KiCad carrier-board design. It is an unfabricated layout exercise, separate from the tested breadboard build. [PCB documentation and files](HardWare/room-environment-monitor-v2/ROOM%20ENVIRONMENT%20PCB%20PRACTICE/README.md).
 
 ## V1: temperature and humidity over Serial
 
@@ -389,11 +391,25 @@ I disconnected the DHT data wire to test a failed reading. The LCD shows `Sensor
 
 These photos record the LCD and LED states. The dashboard image and manual test results are documented separately above.
 
-### Optional follow-up work
+### Remaining breadboard improvements
 
-This completes the planned breadboard build and its photo documentation. I may try a PCB design to get some layout experience, but that is optional and I haven't started it. The current KiCad files document the wiring; they are not a finished PCB design.
+This completes the planned breadboard build and its photo documentation. I also used the circuit as the basis for the separate PCB practice exercise below. The breadboard tests do not establish that the PCB works.
 
 Other possible improvements are investigating the original Wi-Fi rejection, a phone-friendly page layout, and padding normal LCD updates so shorter readings clear the previous text.
+
+## PCB practice: KiCad carrier board
+
+I made a two-layer carrier-board layout to practice schematic-to-PCB work in KiCad. It uses the Freenove ESP32-S3 development board directly in two socket rows, without the GPIO extension board. The DHT11, LED resistors, level-shifter sockets, and external LCD/PIR connectors follow the room monitor's signal assignments.
+
+![KiCad front 3D rendering of the unfabricated room-monitor carrier board](docs/images/pcb-practice/pcb-3d-front.png)
+
+**This is an unfabricated design exercise.** I have not ordered, assembled, or tested this PCB. The plug-in ESP32 and level-shifter modules are represented by sockets in the rendering; the generic LED models all appear red.
+
+Fresh checks in KiCad CLI **10.0.6 on October 16, 2026** reported **0 ERC errors/warnings, 0 DRC errors/warnings, 0 unconnected PCB items, and 0 schematic-parity issues**, under the saved project's enabled checks. Module fit and the provisional level-shifter row spacing remain unverified.
+
+[PCB design notes, pin mapping, limitations, and editable files](HardWare/room-environment-monitor-v2/ROOM%20ENVIRONMENT%20PCB%20PRACTICE/README.md) · [PCB layout screenshot](docs/images/pcb-practice/pcb-layout.png) · [Schematic screenshot](docs/images/pcb-practice/schematic.png)
+
+The PCB notes explain the front ground pour, routing on both copper layers, the LCD-ground thermal-relief correction, dimension sources, and the guided workflow. They also link the fresh check reports and input hashes.
 
 ## Version progression
 
@@ -404,7 +420,7 @@ Other possible improvements are investigating the original Wi-Fi rejection, a ph
 - **V5:** Wi-Fi and a browser dashboard — dashboard tested on my phone
 - **V5.1:** Timed Wi-Fi recovery — reconnected successfully in two manual tests; original rejection cause remains unconfirmed
 
-V5 and V5.1 use the V4 wiring and assembly photos above. The V5 dashboard image and final LCD/LED demonstration photos document the working build. A PCB remains an optional follow-up.
+V5 and V5.1 use the V4 wiring and assembly photos above. The V5 dashboard image and final LCD/LED demonstration photos document the working breadboard build. The separate PCB practice design is routed and checked in KiCad, but has not been fabricated or hardware tested.
 
 ## References and attribution
 

@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "RoomMonitor") (type "KiCad") (uri "${KIPRJMOD}/RoomMonitor.kicad_sym") (options "") (descr "Named Freenove ESP32-S3 development-board header symbols"))
+)

@@ -1,0 +1,27 @@
+{
+  "verified_on": "2026-10-16",
+  "kicad_version": "10.0.6",
+  "scope": "Unfabricated PCB practice design; enabled checks only",
+  "erc": {
+    "errors": 0,
+    "warnings": 0,
+    "report": "erc.json"
+  },
+  "drc": {
+    "errors": 0,
+    "warnings": 0,
+    "unconnected_items": 0,
+    "schematic_parity_issues": 0,
+    "refill_zones": true,
+    "schematic_parity": true,
+    "report": "drc.json"
+  },
+  "inputs_sha256": {
+    "ROOM ENVIRONMENT PCB PRACTICE.kicad_pcb": "2d898d28c900898564c63d06a9e30a0b35f0196a02cddf52e08fc509c2c7c010",
+    "ROOM ENVIRONMENT PCB PRACTICE.kicad_sch": "e28dad47ee53838fb342e2ad2b2f742cbe0f3e5f33e6e559a6ba8ce12a42ab3b",
+    "ROOM ENVIRONMENT PCB PRACTICE.kicad_pro": "7a3c9c358110ede9b5e1049e7b0bacc77aa5a3a2c52e886aaff67178e8523cc7",
+    "RoomMonitor.kicad_sym": "194a989e3741400b0c539bb1d8bee6a4ce83464bc0daa2ce871f458c8344f2d4",
+    "sym-lib-table": "c31a0bc2b2213bbcaf1e40d6b2935d5afc57a84cae2879f2ee5420a3e26c7629"
+  },
+  "hash_normalization": "Text line endings normalized from CRLF/CR to LF before SHA-256"
+}
